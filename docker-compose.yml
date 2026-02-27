@@ -1,0 +1,10 @@
+# Запуск бота в Docker (Odoo уже в контейнере на этом же сервере).
+# В .env задайте ODOO_URL=http://127.0.0.1:8069 — бот общается с Odoo через хост.
+
+services:
+  bot:
+    build: .
+    image: telegram-planning-bot:latest
+    env_file: .env
+    network_mode: host
+    restart: unless-stopped

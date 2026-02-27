@@ -1,0 +1,24 @@
+# Секреты (не попадают в образ)
+.env
+bot/.env
+*.env.local
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+.venv
+venv
+*.egg-info
+*.egg
+
+# IDE и прочее
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+*.log
+logs

@@ -166,7 +166,37 @@ python3 -m bot
 
 Бот подключается к Odoo по HTTP (XML-RPC), поэтому может работать на том же сервере, что и Odoo, или на отдельной машине. Ниже — вариант, когда репозиторий и бот развёрнуты на том же хосте, где уже запущен Odoo.
 
-### 1. Клонирование и настройка
+### Запуск в Docker (кратко: команды на сервере)
+
+Если Odoo уже в контейнере (например `odoo18e-odoo18-1`), бота можно запустить тоже в Docker. Выполните по порядку:
+
+```bash
+# 1. Перейти в каталог бота (уже клонирован в /opt/atkinternal-telegram-bot)
+cd /opt/atkinternal-telegram-bot
+
+# 2. Подтянуть из Git новые файлы (Dockerfile, docker-compose.yml, .dockerignore)
+git pull
+
+# 3. Создать .env из примера (если ещё нет) и заполнить BOT_TOKEN, ODOO_*, пароли
+cp .env.example .env
+nano .env
+# В .env задайте: BOT_TOKEN=..., ODOO_URL=http://127.0.0.1:8069, ODOO_DB=..., ODOO_BOT_LOGIN=..., ODOO_BOT_PASSWORD=...
+
+# 4. Собрать образ и запустить контейнер
+docker compose build
+docker compose up -d
+
+# 5. Смотреть логи
+docker compose logs -f
+```
+
+Остановка: `docker compose down`. Перезапуск после правок кода: `git pull && docker compose build && docker compose up -d --force-recreate`.
+
+Файл `.env` в репозиторий не коммитить (он уже в `.gitignore`).
+
+---
+
+### 1. Клонирование и настройка (без Docker)
 
 ```bash
 cd /opt   # или другой каталог
