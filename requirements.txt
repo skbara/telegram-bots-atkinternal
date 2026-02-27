@@ -1,0 +1,6 @@
+# Telegram Bot API
+python-telegram-bot[job-queue]==21.7
+
+# Odoo XML-RPC (standard library xmlrpc is used; no extra deps)
+# Optional: for future async HTTP
+# aiohttp>=3.9.0
