@@ -2,10 +2,10 @@
 
 Бот для работы с модулем Odoo Planning: создание слотов, изменение/удаление (только созданных ботом), отчёт «свободный ресурс».
 
-## Структура папки `bot/`
+## Структура папки `telegram-bots-atkinternal/`
 
 ```
-bot/
+telegram-bots-atkinternal/
 ├── __init__.py
 ├── __main__.py       # Запуск пакета `bot` как модуля: python -m bot
 ├── main.py           # Точка входа, создание Application, маршрутизация сценариев
@@ -144,8 +144,8 @@ ODOO_BOT_PASSWORD=secret
 
 ```bash
 cd ~/projects/atkinternal-telegram-bot
-export $(grep -v '^#' bot/.env | xargs)
-python3 -m bot
+export $(grep -v '^#' /.telegram_bots_atkinternal | xargs)
+python3 -m telegram_bots_atkinternal
 ```
 
 **Вариант 2 — переменные вручную:**
@@ -166,6 +166,9 @@ python3 -m bot
 
 Бот подключается к Odoo по HTTP (XML-RPC), поэтому может работать на том же сервере, что и Odoo, или на отдельной машине. Ниже — вариант, когда репозиторий и бот развёрнуты на том же хосте, где уже запущен Odoo.
 
+<<<<<<< HEAD
+### 1. Клонирование и настройка
+=======
 ### Запуск в Docker (кратко: команды на сервере)
 
 Если Odoo уже в контейнере (например `odoo18e-odoo18-1`), бота можно запустить тоже в Docker. Выполните по порядку:
@@ -197,6 +200,7 @@ docker compose logs -f
 ---
 
 ### 1. Клонирование и настройка (без Docker)
+>>>>>>> 18e4b53 (Docker files)
 
 ```bash
 cd /opt   # или другой каталог

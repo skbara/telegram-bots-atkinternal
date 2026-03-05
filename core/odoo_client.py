@@ -121,7 +121,7 @@ class OdooClient:
         rows = self.search_read(
             "res.users",
             [("x_telegram_user_id", "=", telegram_user_id)],
-            fields=["id", "name", "tz", "login"],
+            fields=["id", "name", "tz", "login", "x_telegram_access_level"],
             limit=1,
         )
         return rows[0] if rows else None

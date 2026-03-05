@@ -19,7 +19,11 @@ from telegram.request import HTTPXRequest
 from . import config
 from .core import OdooClient, get_state, clear_state, Scenario
 from .keyboards import main_menu_keyboard, BTN_CREATE, BTN_EDIT, BTN_FREE
-from .handlers.access import check_access, no_access_message
+from .handlers.access import (
+    check_access,
+    no_access_message,
+    ACCESS_MANAGE_SLOTS,
+)
 from .handlers.menu import setup_menu_handlers
 from .handlers.create_slot import start as create_start, handle_callback as create_cb, handle_message as create_msg
 from .handlers.edit_slot import start as edit_start, handle_callback as edit_cb, handle_message as edit_msg
@@ -61,17 +65,29 @@ def run():
         if not allowed:
             await no_access_message(update, context)
             return
+        state = get_state(update.effective_chat.id)
         text = (update.message.text or "").strip()
         if text == BTN_CREATE:
-            await create_start(update, context, odoo)
+            if state.telegram_access_level == ACCESS_MANAGE_SLOTS:
+                await create_start(update, context, odoo)
+            else:
+                await update.message.reply_text(
+                    "У вас нет прав для создания слотов. Обратитесь к администратору.",
+                    reply_markup=main_menu_keyboard(state.telegram_access_level),
+                )
             return
         if text == BTN_EDIT:
-            await edit_start(update, context, odoo)
+            if state.telegram_access_level == ACCESS_MANAGE_SLOTS:
+                await edit_start(update, context, odoo)
+            else:
+                await update.message.reply_text(
+                    "У вас нет прав для изменения или удаления слотов. Обратитесь к администратору.",
+                    reply_markup=main_menu_keyboard(state.telegram_access_level),
+                )
             return
         if text == BTN_FREE:
             await free_run(update, context, odoo)
             return
-        state = get_state(update.effective_chat.id)
         if state.scenario == Scenario.CREATE_SLOT:
             consumed = await create_msg(update, context, state, odoo)
             if consumed:
@@ -82,7 +98,7 @@ def run():
                 return
         await update.message.reply_text(
             "Выберите действие:",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=main_menu_keyboard(state.telegram_access_level),
         )
 
     async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -23,6 +23,7 @@ class UserState:
 
     odoo_user_id: Optional[int] = None
     odoo_user_tz: Optional[str] = None
+    telegram_access_level: Optional[str] = None
     scenario: Scenario = Scenario.NONE
     step: int = 0
     data: dict[str, Any] = field(default_factory=dict)

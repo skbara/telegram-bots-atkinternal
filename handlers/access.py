@@ -12,6 +12,11 @@ from .. import config
 
 NO_ACCESS_MESSAGE = "У вас нет доступа. Обратитесь к администратору."
 
+# Technical values must match selection values in Odoo field
+# res.users.x_telegram_access_level.
+ACCESS_VIEW_FREE_RESOURCE = "view_free_resource"
+ACCESS_MANAGE_SLOTS = "manage_slots"
+
 
 async def check_access(
     update: Update,
@@ -31,6 +36,9 @@ async def check_access(
         return False, None
     state = get_state(update.effective_chat.id)
     state.odoo_user_id = odoo_user["id"]
+    state.telegram_access_level = (
+        odoo_user.get("x_telegram_access_level") or ACCESS_VIEW_FREE_RESOURCE
+    )
     # Для корректного совпадения с UI Odoo используем таймзону,
     # указанную у пользователя в Odoo; если она пустая, падаем
     # обратно на DEFAULT_TZ (Europe/Moscow).

@@ -14,9 +14,13 @@ BTN_CANCEL = "Отмена"
 BTN_BACK = "Назад"
 
 
-def main_menu_keyboard():
+def main_menu_keyboard(access_level: str | None = None):
+    if access_level == "view_free_resource":
+        rows = [[BTN_FREE]]
+    else:
+        rows = [[BTN_CREATE], [BTN_EDIT], [BTN_FREE]]
     return ReplyKeyboardMarkup(
-        [[BTN_CREATE], [BTN_EDIT], [BTN_FREE]],
+        rows,
         resize_keyboard=True,
         one_time_keyboard=False,
     )

@@ -10,6 +10,7 @@ from telegram.ext import ContextTypes
 from .. import config
 from ..core import OdooClient, get_state, Scenario
 from ..handlers.access import check_access, no_access_message
+from ..keyboards import main_menu_keyboard
 from ..utils import today_tomorrow_day2, day_range_in_tz, datetime_to_odoo_str
 
 
@@ -78,15 +79,28 @@ async def run(update: Update, context: ContextTypes.DEFAULT_TYPE, odoo: OdooClie
         lines.append(f"{name}\n" + "\n".join(day_results))
 
     if not lines:
-        await update.message.reply_text("Нет данных для отчёта.")
+        await update.message.reply_text(
+            "Нет данных для отчёта.",
+            reply_markup=main_menu_keyboard(state.telegram_access_level),
+        )
         return
     text = "\n\n".join(lines)
     if len(text) > 4000:
         chunks = [text[i : i + 4000] for i in range(0, len(text), 4000)]
-        for chunk in chunks:
-            await update.message.reply_text(chunk)
+        for idx, chunk in enumerate(chunks):
+            # Клавиатуру главного меню показываем только на последнем сообщении.
+            if idx == len(chunks) - 1:
+                await update.message.reply_text(
+                    chunk,
+                    reply_markup=main_menu_keyboard(state.telegram_access_level),
+                )
+            else:
+                await update.message.reply_text(chunk)
     else:
-        await update.message.reply_text(text)
+        await update.message.reply_text(
+            text,
+            reply_markup=main_menu_keyboard(state.telegram_access_level),
+        )
 
 
 def _free_intervals_for_day(

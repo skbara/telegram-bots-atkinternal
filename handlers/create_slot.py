@@ -300,10 +300,13 @@ async def handle_message(
         }
         try:
             slot_id = odoo.slot_create(vals)
-            clear_state(update.effective_chat.id)
+            chat_id = update.effective_chat.id
+            state = get_state(chat_id)
+            access_level = state.telegram_access_level
+            clear_state(chat_id)
             await update.message.reply_text(
                 f"Слот создан (ID: {slot_id}).",
-                reply_markup=main_menu_keyboard(),
+                reply_markup=main_menu_keyboard(access_level),
             )
         except Exception as e:
             await update.message.reply_text(
