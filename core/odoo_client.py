@@ -208,6 +208,19 @@ class OdooClient:
         )
         return rows[0] if rows else None
 
+    def get_project_by_name(self, name: str) -> Optional[dict]:
+        """First project.project with given name (ilike)."""
+        name = (name or "").strip()
+        if not name:
+            return None
+        rows = self.search_read(
+            "project.project",
+            [("name", "ilike", name)],
+            fields=["id", "name"],
+            limit=1,
+        )
+        return rows[0] if rows else None
+
     def get_all_employees_with_resource(self) -> list:
         """Employees that have resource_id set (for planning)."""
         return self.search_read(

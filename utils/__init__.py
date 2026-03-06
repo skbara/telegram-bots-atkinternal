@@ -7,6 +7,8 @@ from .helpers import (
     datetime_to_odoo_str,
     day_range_in_tz,
     parse_date_ddmmyyyy,
+    parse_quick_slot_parts,
+    resolve_project_and_role,
     today_tomorrow_day2,
 )
 
@@ -17,5 +19,7 @@ __all__ = [
     "datetime_to_odoo_str",
     "day_range_in_tz",
     "parse_date_ddmmyyyy",
+    "parse_quick_slot_parts",
+    "resolve_project_and_role",
     "today_tomorrow_day2",
 ]

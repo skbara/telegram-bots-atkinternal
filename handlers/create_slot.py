@@ -14,12 +14,15 @@ from ..keyboards import (
     inline_back_cancel,
     back_cancel_keyboard,
     main_menu_keyboard,
+    BTN_BACK,
     BTN_CANCEL,
 )
 from ..utils import (
     parse_date_ddmmyyyy,
     build_slot_start_end_utc,
     datetime_to_odoo_str,
+    parse_quick_slot_parts,
+    resolve_project_and_role,
 )
 from .menu import WELCOME
 
@@ -123,14 +126,54 @@ async def handle_callback(
             )
             return
         if step_back == 3:
-            # Back to role selection
-            roles = odoo.get_planning_roles()
+            # Back to method choice (Standard / Quick)
+            rows = [
+                [
+                    InlineKeyboardButton(
+                        "Стандартный",
+                        callback_data=f"{CREATE_PREFIX}_mode:standard",
+                    ),
+                    InlineKeyboardButton(
+                        "Быстрый",
+                        callback_data=f"{CREATE_PREFIX}_mode:quick",
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        BTN_BACK, callback_data=f"{CREATE_PREFIX}_back:2"
+                    ),
+                    InlineKeyboardButton(
+                        BTN_CANCEL, callback_data=f"{CREATE_PREFIX}_cancel"
+                    ),
+                ],
+            ]
             await query.edit_message_text(
-                "Выберите роль:",
-                reply_markup=inline_list_with_nav(roles, CREATE_PREFIX, "role", 2),
+                "Выберите способ создания отчёта:",
+                reply_markup=InlineKeyboardMarkup(rows),
             )
             return
         if step_back == 4:
+            # Back to role selection (standard) or quick input prompt (quick)
+            if state.data.get("creation_mode") == "quick":
+                hint = (
+                    "Введите данные в формате:\n"
+                    "Проект-Роль-Начало(DD.MM.YYYY)-Конец(DD.MM.YYYY)-Доп.текст\n\n"
+                    "Пример: 001AMM-Работа на проекте-05.03.2026-10.05.2026-проверка"
+                )
+                await query.edit_message_text(
+                    hint,
+                    reply_markup=inline_back_cancel(CREATE_PREFIX, 3),
+                )
+            else:
+                roles = odoo.get_planning_roles()
+                await query.edit_message_text(
+                    "Выберите роль:",
+                    reply_markup=inline_list_with_nav(
+                        roles, CREATE_PREFIX, "role", 3
+                    ),
+                )
+            return
+        if step_back == 5:
             # Back to project selection
             projects = odoo.get_projects()
             await query.edit_message_text(
@@ -139,22 +182,22 @@ async def handle_callback(
                     projects if projects else [{"id": False, "name": "— Без проекта —"}],
                     CREATE_PREFIX,
                     "proj",
-                    3,
+                    4,
                 ),
             )
             return
-        if step_back == 5:
+        if step_back == 6:
             # Back to start date input
             await query.edit_message_text(
                 f"Введите дату начала в формате {config.DATE_FORMAT_HINT} (время 08:00):",
-                reply_markup=inline_back_cancel(CREATE_PREFIX, 4),
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 5),
             )
             return
-        if step_back == 6:
+        if step_back == 7:
             # Back to end date input
             await query.edit_message_text(
                 f"Введите дату окончания в формате {config.DATE_FORMAT_HINT} (время 17:00):",
-                reply_markup=inline_back_cancel(CREATE_PREFIX, 5),
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 6),
             )
             return
         return
@@ -182,22 +225,62 @@ async def handle_callback(
         if emp and emp.get("resource_id"):
             state.data["resource_id"] = emp["resource_id"][0]
         state.step = 3
-        roles = odoo.get_planning_roles()
-        if not roles:
-            await query.edit_message_text(
-                "Нет ролей планирования. Обратитесь к администратору.",
-                reply_markup=inline_back_cancel(CREATE_PREFIX, 1),
-            )
-            return
+        rows = [
+            [
+                InlineKeyboardButton(
+                    "Стандартный",
+                    callback_data=f"{CREATE_PREFIX}_mode:standard",
+                ),
+                InlineKeyboardButton(
+                    "Быстрый",
+                    callback_data=f"{CREATE_PREFIX}_mode:quick",
+                ),
+            ],
+            [
+                InlineKeyboardButton(BTN_BACK, callback_data=f"{CREATE_PREFIX}_back:2"),
+                InlineKeyboardButton(BTN_CANCEL, callback_data=f"{CREATE_PREFIX}_cancel"),
+            ],
+        ]
         await query.edit_message_text(
-            "Выберите роль:",
-            reply_markup=inline_list_with_nav(roles, CREATE_PREFIX, "role", 2),
+            "Выберите способ создания отчёта:",
+            reply_markup=InlineKeyboardMarkup(rows),
         )
         return
 
+    if parts[0] == "mode" and len(parts) >= 2:
+        mode = parts[1]
+        if mode == "standard":
+            state.data["creation_mode"] = "standard"
+            state.step = 4
+            roles = odoo.get_planning_roles()
+            if not roles:
+                await query.edit_message_text(
+                    "Нет ролей планирования. Обратитесь к администратору.",
+                    reply_markup=inline_back_cancel(CREATE_PREFIX, 3),
+                )
+                return
+            await query.edit_message_text(
+                "Выберите роль:",
+                reply_markup=inline_list_with_nav(roles, CREATE_PREFIX, "role", 3),
+            )
+            return
+        if mode == "quick":
+            state.data["creation_mode"] = "quick"
+            state.step = 4
+            hint = (
+                "Введите данные в формате:\n"
+                "Проект-Роль-Начало(DD.MM.YYYY)-Конец(DD.MM.YYYY)-Доп.текст\n\n"
+                "Пример: 001AMM-Работа на проекте-05.03.2026-10.05.2026-проверка"
+            )
+            await query.edit_message_text(
+                hint,
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 3),
+            )
+            return
+
     if parts[0] == "role" and len(parts) >= 2:
         state.data["role_id"] = int(parts[1])
-        state.step = 4
+        state.step = 5
         projects = odoo.get_projects()
         await query.edit_message_text(
             "Выберите проект:",
@@ -205,7 +288,7 @@ async def handle_callback(
                 projects if projects else [{"id": False, "name": "— Без проекта —"}],
                 CREATE_PREFIX,
                 "proj",
-                3,
+                4,
             ),
         )
         return
@@ -215,10 +298,10 @@ async def handle_callback(
             state.data["project_id"] = int(parts[1])
         except ValueError:
             state.data["project_id"] = False
-        state.step = 5
+        state.step = 6
         await query.edit_message_text(
             f"Введите дату начала в формате {config.DATE_FORMAT_HINT} (время 08:00):",
-            reply_markup=inline_back_cancel(CREATE_PREFIX, 4),
+            reply_markup=inline_back_cancel(CREATE_PREFIX, 5),
         )
         return
 
@@ -229,25 +312,68 @@ async def handle_message(
     state,
     odoo: OdooClient,
 ) -> bool:
-    """Handle text input for steps 5 (start_date), 6 (end_date), 7 (comment). Returns True if consumed."""
+    """Handle text input: step 4 (quick format), 6–8 (standard: start_date, end_date, comment). Returns True if consumed."""
     text = (update.message.text or "").strip()
     if not text or text in ("Назад", "Отмена"):
         return False
 
-    if state.step == 5:
-        d = parse_date_ddmmyyyy(text)
-        if not d:
+    # Быстрый ввод: один шаг (step 4)
+    if state.step == 4 and state.data.get("creation_mode") == "quick":
+        result = parse_quick_slot_parts(text)
+        if len(result) == 5 and result[0] is None:
             await update.message.reply_text(
-                f"Неверный формат даты. Введите {config.DATE_FORMAT_HINT}.",
-                reply_markup=inline_back_cancel(CREATE_PREFIX, 4),
+                result[4],
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 3),
             )
             return True
-        state.data["start_date"] = d
-        state.step = 6
-        await update.message.reply_text(
-            f"Введите дату окончания в формате {config.DATE_FORMAT_HINT} (время 17:00):",
-            reply_markup=inline_back_cancel(CREATE_PREFIX, 5),
+        project_role_str, start_date, end_date, name = result[0], result[1], result[2], result[3]
+        projects = odoo.get_projects() or []
+        roles = odoo.get_planning_roles() or []
+        proj_id, role_id, err = resolve_project_and_role(
+            project_role_str, projects, roles
         )
+        if err:
+            await update.message.reply_text(
+                err,
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 3),
+            )
+            return True
+        tz = state.odoo_user_tz or "UTC"
+        start_dt, end_dt = build_slot_start_end_utc(
+            start_date, end_date, tz,
+            config.DEFAULT_SLOT_START_TIME,
+            config.DEFAULT_SLOT_END_TIME,
+        )
+        if not start_dt or not end_dt:
+            await update.message.reply_text(
+                "Ошибка при расчёте времени. Попробуйте снова.",
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 3),
+            )
+            return True
+        vals = {
+            "resource_id": state.data["resource_id"],
+            "role_id": role_id,
+            "project_id": proj_id or False,
+            "start_datetime": datetime_to_odoo_str(start_dt),
+            "end_datetime": datetime_to_odoo_str(end_dt),
+            "name": name,
+            "x_is_telegram_bot": True,
+        }
+        try:
+            slot_id = odoo.slot_create(vals)
+            chat_id = update.effective_chat.id
+            state = get_state(chat_id)
+            access_level = state.telegram_access_level
+            clear_state(chat_id)
+            await update.message.reply_text(
+                f"Слот создан (ID: {slot_id}).",
+                reply_markup=main_menu_keyboard(access_level),
+            )
+        except Exception as e:
+            await update.message.reply_text(
+                f"Ошибка при создании слота: {e}",
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 3),
+            )
         return True
 
     if state.step == 6:
@@ -258,23 +384,39 @@ async def handle_message(
                 reply_markup=inline_back_cancel(CREATE_PREFIX, 5),
             )
             return True
-        if d < state.data["start_date"]:
-            await update.message.reply_text(
-                "Дата окончания не может быть раньше даты начала.",
-                reply_markup=inline_back_cancel(CREATE_PREFIX, 5),
-            )
-            return True
-        state.data["end_date"] = d
+        state.data["start_date"] = d
         state.step = 7
         await update.message.reply_text(
-            "Введите комментарий (название слота):",
+            f"Введите дату окончания в формате {config.DATE_FORMAT_HINT} (время 17:00):",
             reply_markup=inline_back_cancel(CREATE_PREFIX, 6),
         )
         return True
 
     if state.step == 7:
+        d = parse_date_ddmmyyyy(text)
+        if not d:
+            await update.message.reply_text(
+                f"Неверный формат даты. Введите {config.DATE_FORMAT_HINT}.",
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 6),
+            )
+            return True
+        if d < state.data["start_date"]:
+            await update.message.reply_text(
+                "Дата окончания не может быть раньше даты начала. Попробуйте еще раз.",
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 6),
+            )
+            return True
+        state.data["end_date"] = d
+        state.step = 8
+        await update.message.reply_text(
+            "Введите комментарий (название слота):",
+            reply_markup=inline_back_cancel(CREATE_PREFIX, 7),
+        )
+        return True
+
+    if state.step == 8:
         state.data["name"] = text or "Слот"
-        # Create slot
+        # Create slot (standard flow)
         tz = state.odoo_user_tz or "UTC"
         start_dt, end_dt = build_slot_start_end_utc(
             state.data["start_date"],
@@ -286,7 +428,7 @@ async def handle_message(
         if not start_dt or not end_dt:
             await update.message.reply_text(
                 "Ошибка при расчёте времени. Попробуйте снова.",
-                reply_markup=inline_back_cancel(CREATE_PREFIX, 6),
+                reply_markup=inline_back_cancel(CREATE_PREFIX, 7),
             )
             return True
         vals = {

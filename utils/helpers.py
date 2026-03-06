@@ -2,10 +2,14 @@
 
 """Date/time parsing and timezone helpers."""
 
+import re
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from .. import config
+
+# Формат быстрого слота: Проект-Роль-Начало(DD.MM.YYYY)-Конец(DD.MM.YYYY)-Доп.текст
+QUICK_SLOT_DATE_PATTERN = re.compile(r"\d{2}\.\d{2}\.\d{4}")
 
 
 def parse_date_ddmmyyyy(text: str) -> Optional[date]:
@@ -116,3 +120,148 @@ def today_tomorrow_day2(tz_name: Optional[str]) -> Tuple[date, date, date]:
             pass
     now = datetime.now(timezone.utc).date()
     return now, now + timedelta(days=1), now + timedelta(days=2)
+
+
+def parse_quick_slot_parts(
+    text: str,
+) -> Union[
+    Tuple[str, date, date, str],
+    Tuple[None, None, None, None, str],
+]:
+    """
+    Разбирает строку быстрого формата:
+    Проект-Роль-Начало(DD.MM.YYYY)-Конец(DD.MM.YYYY)-Доп.текст
+    Названия проектов и ролей могут содержать «-», поэтому разделение идёт по
+    позициям двух дат DD.MM.YYYY.
+
+    Возвращает либо (project_role_str, start_date, end_date, name),
+    либо (None, None, None, None, error_message).
+    """
+    text = (text or "").strip()
+    if not text:
+        return (None, None, None, None, "Введите непустую строку в быстром формате.")
+
+    matches = list(QUICK_SLOT_DATE_PATTERN.finditer(text))
+    if len(matches) < 2:
+        return (
+            None,
+            None,
+            None,
+            None,
+            "Неверный формат: в строке должны быть две даты в формате DD.MM.YYYY. Проверьте данные и попробуйте еще раз.",
+        )
+    if len(matches) > 2:
+        return (
+            None,
+            None,
+            None,
+            None,
+            "Неверный формат: найдено больше двух дат. Укажите ровно две даты DD.MM.YYYY и попробуйте еще раз.",
+        )
+
+    first = matches[0]
+    second = matches[1]
+    start_str = first.group(0)
+    end_str = second.group(0)
+
+    start_date = parse_date_ddmmyyyy(start_str)
+    end_date = parse_date_ddmmyyyy(end_str)
+    if not start_date:
+        return (
+            None,
+            None,
+            None,
+            None,
+            f"Неверный формат даты начала: «{start_str}». Ожидается DD.MM.YYYY.",
+        )
+    if not end_date:
+        return (
+            None,
+            None,
+            None,
+            None,
+            f"Неверный формат даты окончания: «{end_str}». Ожидается DD.MM.YYYY.",
+        )
+    if end_date < start_date:
+        return (
+            None,
+            None,
+            None,
+            None,
+            "Дата окончания не может быть раньше даты начала. Попробуйте еще раз.",
+        )
+
+    before_first = text[: first.start()].rstrip("-").strip()
+    after_second = text[second.end() :].lstrip("-").strip()
+
+    if not before_first:
+        return (
+            None,
+            None,
+            None,
+            None,
+            "Неверный формат: до первой даты должно быть указано: Проект-Роль.",
+        )
+
+    return (before_first, start_date, end_date, after_second or "Слот")
+
+
+def resolve_project_and_role(
+    project_role_str: str,
+    projects: List[dict],
+    roles: List[dict],
+) -> Union[Tuple[int, Optional[int], Optional[str]], Tuple[None, None, str]]:
+    """
+    Разделяет строку «Проект-Роль» на проект и роль по совпадению с Odoo.
+    Роль ищется с конца строки (названия проектов могут содержать «-»).
+    Принимаются только полные совпадения имени проекта и имени роли (вхождение не используется).
+
+    projects/roles: list of dict with "id", "name".
+    Возвращает (project_id, role_id, None) или (None, None, error_message).
+    project_id может быть False для «Без проекта» — не поддерживается в быстром формате.
+    """
+    project_role_str = (project_role_str or "").strip()
+    if not project_role_str:
+        return (None, None, "Не указаны проект и роль.")
+
+    # Сортируем роли по длине имени по убыванию, чтобы сначала пробовать длинные совпадения
+    roles_sorted = sorted(
+        (r for r in roles if (r.get("name") or "").strip()),
+        key=lambda r: len((r["name"] or "").strip()),
+        reverse=True,
+    )
+    for role in roles_sorted:
+        rname = (role["name"] or "").strip()
+        if not rname:
+            continue
+        # Строка должна заканчиваться на роль (с возможным разделителем «-» перед ней)
+        normalized = project_role_str.strip()
+        if normalized == rname:
+            project_part = ""
+        elif normalized.endswith("-" + rname):
+            project_part = normalized[: -len(rname) - 1].rstrip("-").strip()
+        elif normalized.endswith(" " + rname):
+            project_part = normalized[: -len(rname) - 1].rstrip("-").strip()
+        else:
+            continue
+        # Ищем проект только по полному совпадению имени (вхождение не используется)
+        project_part = project_part.strip()
+        if not project_part:
+            return (None, None, "Не указано название проекта.")
+        for proj in projects:
+            pname = (proj.get("name") or "").strip()
+            if not pname:
+                continue
+            if pname == project_part:
+                return (proj["id"], role["id"], None)
+        return (
+            None,
+            None,
+            f"Проект «{project_part}» не найден в Odoo. Проверьте название и попробуйте еще раз.",
+        )
+
+    return (
+        None,
+        None,
+        "Роль не найдена в Odoo. Проверьте данные и попробуйте еще раз.",
+    )
