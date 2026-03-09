@@ -6,6 +6,12 @@ import re
 from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Optional, Tuple, Union
 
+# Названия месяцев на русском (для кнопок «Март 2026»)
+MONTH_NAMES_RU = (
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+)
+
 from .. import config
 
 # Формат быстрого слота: Проект-Роль-Начало(DD.MM.YYYY)-Конец(DD.MM.YYYY)-Доп.текст
@@ -26,6 +32,33 @@ def parse_date_ddmmyyyy(text: str) -> Optional[date]:
 def date_to_ddmmyyyy(d: date) -> str:
     """Format date as DD.MM.YYYY."""
     return d.strftime(config.DATE_FORMAT)
+
+
+def month_display_name(year: int, month: int) -> str:
+    """Format month for display, e.g. 'Март 2026'."""
+    if 1 <= month <= 12:
+        return f"{MONTH_NAMES_RU[month - 1]} {year}"
+    return f"{month:02d}.{year}"
+
+
+def get_weeks_for_month(month_date: date) -> List[Tuple[date, date]]:
+    """
+    Return list of (week_start, week_end) for all calendar weeks
+    (Monday–Sunday) that intersect the given month.
+    week_start = Monday, week_end = Sunday.
+    """
+    first_day = month_date.replace(day=1)
+    last_day = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1)
+    last_day = last_day - timedelta(days=1)
+    # Понедельник недели, в которую входит первый день месяца
+    monday = first_day - timedelta(days=first_day.weekday())
+    weeks = []
+    while monday <= last_day:
+        week_end = monday + timedelta(days=6)
+        if week_end >= first_day:
+            weeks.append((monday, week_end))
+        monday += timedelta(days=7)
+    return weeks
 
 
 # Odoo expects datetime as "YYYY-MM-DD HH:MM:SS", not ISO with "T"

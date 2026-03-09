@@ -27,7 +27,7 @@ from .handlers.access import (
 from .handlers.menu import setup_menu_handlers
 from .handlers.create_slot import start as create_start, handle_callback as create_cb, handle_message as create_msg
 from .handlers.edit_slot import start as edit_start, handle_callback as edit_cb, handle_message as edit_msg
-from .handlers.free_resource import run as free_run
+from .handlers.free_resource import start as free_start, handle_callback as free_cb, handle_message as free_msg
 
 
 logging.basicConfig(
@@ -86,7 +86,7 @@ def run():
                 )
             return
         if text == BTN_FREE:
-            await free_run(update, context, odoo)
+            await free_start(update, context, odoo)
             return
         if state.scenario == Scenario.CREATE_SLOT:
             consumed = await create_msg(update, context, state, odoo)
@@ -94,6 +94,10 @@ def run():
                 return
         if state.scenario == Scenario.EDIT_SLOT:
             consumed = await edit_msg(update, context, state, odoo)
+            if consumed:
+                return
+        if state.scenario == Scenario.FREE_RESOURCE:
+            consumed = await free_msg(update, context, state, odoo)
             if consumed:
                 return
         await update.message.reply_text(
@@ -137,6 +141,9 @@ def run():
             rest = raw[5:]
             parts = rest.split(":", 1) if ":" in rest else [rest]
             await edit_cb(update, context, odoo, parts)
+            return
+        if raw.startswith("free_"):
+            await free_cb(update, context, odoo, raw)
             return
 
     setup_menu_handlers(app, odoo)
